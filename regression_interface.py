@@ -122,7 +122,8 @@ class RomePricingEngine:
                     "id": record.get("id", f"unknown_{i}"),
                     "status": "ERROR_MISSING_DATA",
                     "message": f"Cannot generate estimate. Missing critical required fields: {', '.join(missing_critical)}",
-                    "predicted_price_exact": None
+                    "predicted_price_exact": None,
+                    "prediction_time_ms": 0.0
                 })
             else:
                 valid_records.append(record)
@@ -142,9 +143,11 @@ class RomePricingEngine:
                 is_premium = premium_flags[list_idx]
                 neigh = neighborhoods[list_idx]
 
+                start_time_ms = time.perf_counter()
                 model = self.models.get(segment, self.default_model)
                 pred_price = model.predict(X.iloc[[list_idx]])[0]
                 neigh_baseline = self.baselines["neighborhood_medians"].get(neigh, self.baselines["global_median"])
+                prediction_time_ms = (time.perf_counter() - start_time_ms) * 1000.0
                 
                 predictions[original_idx] = {
                     "id": valid_records[list_idx].get("id", f"listing_{original_idx}"),
@@ -157,7 +160,8 @@ class RomePricingEngine:
                     "comparisons": {
                         "neighborhood_median_baseline": neigh_baseline,
                         "global_city_median": self.baselines["global_median"]
-                    }
+                    },
+                    "prediction_time_ms": round(prediction_time_ms, 2)
                 }
                 
         return predictions
@@ -375,6 +379,7 @@ if __name__ == "__main__":
             print(f"Listing ID ({res['id']}):")
             print(f"  -> Status             : {res['status']}")
             print(f"  -> Message            : {res['message']}")
+            print(f"  -> Inference time     : {res.get('prediction_time_ms', 'N/A')} ms")
             if res['predicted_price_exact']:
                 print(f"  -> ML Suggested Price : €{res['predicted_price_exact']} (Range: €{res['advisory_range_min']} - €{res['advisory_range_max']})")
             print("-" * 50)
